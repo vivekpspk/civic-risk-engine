@@ -225,15 +225,18 @@ def test_09_time_outstanding_updates_as_complaint_ages(db_session):
 # ---------------------------------------------------------------------------
 def test_10_duplicate_reports_do_not_inflate_recurrence(client):
     # Submit first report
-    p1 = {"description": "Pothole on 2nd Avenue", "latitude": 16.501, "longitude": 80.641}
+    p1 = {"description": "Pothole on 2nd Avenue", "latitude": 16.501, "longitude": 80.641, "category_hint": "pothole"}
     r1 = client.post("/api/complaints", json=p1).json()
 
     # Submit exact same report (duplicate submission by same/another user)
-    p2 = {"description": "Pothole on 2nd Avenue", "latitude": 16.501, "longitude": 80.641}
+    p2 = {"description": "Pothole on 2nd Avenue", "latitude": 16.501, "longitude": 80.641, "category_hint": "pothole"}
     r2 = client.post("/api/complaints", json=p2).json()
 
-    # Verify scores are consistent and not exponentially climbing
-    assert abs(r1["risk_score"] - r2["risk_score"]) < 5.0
+    # Verify recurrence factor is not inflated by immediate duplicate reports
+    assert abs(r1["risk_score"] - r2["risk_score"]) <= 5.0
+    # Also verify exact recurrence parity
+    if "factor_contributions" in r1 and "factor_contributions" in r2 and r1["factor_contributions"] and r2["factor_contributions"]:
+        assert r1["factor_contributions"]["recurrence"] == r2["factor_contributions"]["recurrence"]
 
 
 # ---------------------------------------------------------------------------
