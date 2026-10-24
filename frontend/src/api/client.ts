@@ -184,3 +184,73 @@ export async function fetchAIStatus(): Promise<any> {
   if (!res.ok) throw new Error(`Failed to fetch AI status: ${res.statusText}`);
   return res.json();
 }
+
+// ==========================================
+// WORKER & EVIDENCE LIFECYCLE CLIENT CALLS
+// ==========================================
+
+export async function fetchEvidenceComparison(complaintId: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/api/complaints/${encodeURIComponent(complaintId)}/comparison`);
+  if (!res.ok) throw new Error(`Failed to fetch comparison: ${res.statusText}`);
+  return res.json();
+}
+
+export async function fetchMunicipalWorkers(): Promise<any[]> {
+  const res = await fetch(`${API_BASE}/api/admin/workers`);
+  if (!res.ok) throw new Error(`Failed to fetch workers: ${res.statusText}`);
+  return res.json();
+}
+
+export async function assignWorker(
+  complaintId: string,
+  data: { worker_id: string; admin_id: string; instructions?: string }
+): Promise<any> {
+  const res = await fetch(`${API_BASE}/api/admin/complaints/${encodeURIComponent(complaintId)}/assign`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'Failed to assign worker');
+  }
+  return res.json();
+}
+
+export async function verifyResolution(
+  complaintId: string,
+  data: { decision: string; admin_id: string; notes?: string }
+): Promise<any> {
+  const res = await fetch(`${API_BASE}/api/admin/complaints/${encodeURIComponent(complaintId)}/verify-resolution`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'Failed to verify resolution');
+  }
+  return res.json();
+}
+
+export async function reopenComplaint(
+  complaintId: string,
+  data: { admin_id: string; reason: string }
+): Promise<any> {
+  const res = await fetch(`${API_BASE}/api/admin/complaints/${encodeURIComponent(complaintId)}/reopen`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'Failed to reopen complaint');
+  }
+  return res.json();
+}
+
+export async function fetchPublicTracking(complaintId: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/api/public/complaints/${encodeURIComponent(complaintId)}`);
+  if (!res.ok) throw new Error(`Failed to fetch public tracking: ${res.statusText}`);
+  return res.json();
+}
