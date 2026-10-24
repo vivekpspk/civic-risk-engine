@@ -130,6 +130,8 @@ class CitizenComplaintCreate(BaseModel):
     reporter_phone: Optional[str] = Field(None, description="Optional contact phone (Private, never exposed publicly)")
     reporter_email: Optional[str] = Field(None, description="Optional contact email (Private, never exposed publicly)")
     consent_given: bool = Field(True, description="Explicit consent for municipal processing")
+    consent_sms: bool = Field(True, description="Consent for receiving SMS updates")
+    category_hint: Optional[str] = Field(None, description="Optional user category suggestion")
 
     @field_validator("latitude")
     @classmethod
@@ -221,3 +223,136 @@ class AIAnalysisResponse(BaseModel):
     ai_model_used: str
     analysis_status: str
     confidence_score: float
+
+
+# ==========================================
+# WORKER & EVIDENCE LIFECYCLE SCHEMAS
+# ==========================================
+
+class EvidenceItemResponse(BaseModel):
+    evidence_id: str
+    evidence_type: str  # "before" or "after"
+    original_filename: str
+    mime_type: str
+    file_size_bytes: int
+    uploaded_by_role: str
+    uploaded_by_id: str
+    uploaded_at: str
+    redaction_status: str
+    view_url: str
+    caption: Optional[str] = None
+    sha256_hash: Optional[str] = None
+
+
+class EvidenceComparisonResponse(BaseModel):
+    complaint_id: str
+    title: str
+    status: str
+    ward: str
+    before_evidence: List[EvidenceItemResponse]
+    after_evidence: List[EvidenceItemResponse]
+    total_before_count: int
+    total_after_count: int
+    resolution_summary: Optional[Dict[str, Any]] = None
+
+
+class WorkerSummaryResponse(BaseModel):
+    worker_id: str
+    name: str
+    phone: str
+    department: str
+    ward: str
+    status: str
+    active_tasks_count: int
+
+
+class WorkerTaskResponse(BaseModel):
+    task_id: int
+    complaint_id: str
+    worker_id: str
+    status: str  # assigned, accepted, in_progress, completed, unable_to_resolve
+    assigned_at: str
+    instructions: Optional[str] = None
+    target_completion_time: Optional[str] = None
+    hazard_title: str
+    ward: str
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    location_address: Optional[str] = None
+    priority_band: str
+    risk_score: float
+    safety_override_active: bool
+
+
+class WorkerAcceptRequest(BaseModel):
+    worker_id: str = Field(..., min_length=2)
+    notes: Optional[str] = None
+
+
+class WorkerStartRequest(BaseModel):
+    worker_id: str = Field(..., min_length=2)
+    inspection_notes: Optional[str] = None
+
+
+class WorkerUnableToResolveRequest(BaseModel):
+    worker_id: str = Field(..., min_length=2)
+    reason: str = Field(..., min_length=5, description="Specific blocker reason preventing resolution")
+
+
+class WorkerResolutionSubmitRequest(BaseModel):
+    worker_id: str = Field(..., min_length=2)
+    description: str = Field(..., min_length=5, description="Detailed description of the repair or work performed")
+    action_taken: str = Field(..., min_length=3, description="Specific physical action executed")
+    after_evidence_ids: List[str] = Field(..., min_length=1, description="List of uploaded after-photo evidence IDs")
+    completion_latitude: Optional[float] = None
+    completion_longitude: Optional[float] = None
+    blockers: Optional[str] = None
+
+
+class AdminAssignWorkerRequest(BaseModel):
+    worker_id: str = Field(..., min_length=2, description="Target worker ID to assign")
+    admin_id: str = Field(..., min_length=2, description="Admin officer authorizing assignment")
+    instructions: Optional[str] = Field(None, description="Operational instructions for the worker")
+    target_completion_time: Optional[datetime] = Field(None, description="Target SLA resolution time")
+
+
+class AdminVerifyResolutionRequest(BaseModel):
+    decision: str = Field(..., description="'approve' to mark COMPLETED, 'reject' to return to IN_PROGRESS")
+    admin_id: str = Field(..., min_length=2, description="Administrator verifying resolution")
+    notes: Optional[str] = Field(None, description="Verification notes or rejection explanation")
+
+
+class AdminReopenRequest(BaseModel):
+    admin_id: str = Field(..., min_length=2)
+    reason: str = Field(..., min_length=5, description="Mandatory reason for reopening the complaint")
+
+
+class AdminRejectRequest(BaseModel):
+    admin_id: str = Field(..., min_length=2)
+    reason: str = Field(..., min_length=5, description="Mandatory reason for rejecting the complaint")
+
+
+class StatusTimelineItem(BaseModel):
+    timestamp: str
+    status: str
+    actor_role: str
+    notes: Optional[str] = None
+
+
+class PublicComplaintTrackingResponse(BaseModel):
+    complaint_id: str
+    status: str
+    submitted_at: str
+    hazard_category: str
+    general_description: str
+    priority_band: str
+    ward: str
+    is_reopened: bool
+    status_timeline: List[StatusTimelineItem]
+    before_photos: List[EvidenceItemResponse]
+    after_photos: List[EvidenceItemResponse]
+    resolution_description: Optional[str] = None
+    action_performed: Optional[str] = None
+    resolved_at: Optional[str] = None
+    tracking_url: str
+

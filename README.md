@@ -11,12 +11,16 @@ A production-grade, mathematically deterministic, and explainable **Civic Risk S
 When sudden cloudbursts generate 140+ simultaneous civic reports across municipal wards, traditional first-in-first-out (FIFO) ticketing queues fail: fatal hazards remain buried beneath cosmetic complaints, inter-departmental boundary disputes stall response, and bot bursts divert emergency resources.
 
 This platform implements:
-1. **Deterministic 6-Factor Risk Formula:** Dynamically scores incidents from 0.0 to 100.0 based on physical hazard severity, sensitive site proximity, population exposure, weather risk, elapsed time, and historical recurrence.
-2. **Independent Safety Override Engine:** Automatically forces imminent life hazards (e.g., open manholes near school gates, sparking electrical cables in rainwater) to **Critical Emergency Review**, independent of raw formula scores.
-3. **Dynamic Priority Queue:** Orders tickets using a strict hierarchy: `Active Safety Override` &rarr; `Physical Risk Score` &rarr; `SLA Urgency` &rarr; `Incident Age (Tie-Breaker)`.
-4. **Honest Uncertainty & Missing Data Handling:** Distinctly differentiates zero population from missing census data, flagging uncertainties without making false assumptions.
-5. **Replayable 140-Report Stress Test:** Ingests exactly 140 synthetic reports across 3 simulated storm hours (28 school manhole, 36 boundary waterlogging, 32 coordinated bot attack, 44 routine issues) while preserving independent genuine emergencies.
-6. **Immutable Audit Ledger:** Persists every assessment, factor contribution, and authorized manual override without ever overwriting historical data.
+1. **Complete Complaint Lifecycle State Machine:** Enforces strict validated transitions across 11 stages (`SUBMITTED`, `ASSESSED`, `ASSIGNED`, `ACCEPTED`, `IN_PROGRESS`, `RESOLUTION_SUBMITTED`, `VERIFICATION_REQUIRED`, `COMPLETED`, `REOPENED`, `REJECTED`, `UNABLE_TO_RESOLVE`).
+2. **Secure Before-and-After Evidence Management:** Automatically strips EXIF metadata, verifies MIME signatures (JPEG, PNG, WEBP), and stores before-and-after proof separately for tamper-evident review.
+3. **Role-Enforced Workflows:** Field workers cannot approve their own tasks or mark complaints completed. Administrator verification with before/after comparison is mandatory.
+4. **Resilient Citizen SMS Notification:** Triggers completion SMS notifications to citizens upon administrator verification, protected by idempotency keys and citizen consent checks.
+5. **Deterministic 6-Factor Risk Formula:** Dynamically scores incidents from 0.0 to 100.0 based on physical hazard severity, sensitive site proximity, population exposure, weather risk, elapsed time, and historical recurrence.
+6. **Independent Safety Override Engine:** Automatically forces imminent life hazards (e.g., open manholes near school gates, sparking electrical cables in rainwater) to **Critical Emergency Review**, independent of raw formula scores.
+7. **Dynamic Priority Queue:** Orders tickets using a strict hierarchy: `Active Safety Override` &rarr; `Physical Risk Score` &rarr; `SLA Urgency` &rarr; `Incident Age (Tie-Breaker)`.
+8. **Honest Uncertainty & Missing Data Handling:** Distinctly differentiates zero population from missing census data, flagging uncertainties without making false assumptions.
+9. **Replayable 140-Report Stress Test:** Ingests exactly 140 synthetic reports across 3 simulated storm hours while preserving independent genuine emergencies.
+10. **Immutable Audit Ledger:** Persists every assessment, status transition, evidence upload, and authorized override.
 
 ---
 

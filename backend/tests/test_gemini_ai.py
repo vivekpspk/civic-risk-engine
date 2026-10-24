@@ -53,7 +53,7 @@ def test_03_citizen_intake_populates_ai_fields():
     res = client.post("/api/complaints/submit", json=payload)
     assert res.status_code == 201
     data = res.json()
-    assert data["complaint_id"].startswith("CMP-2026-")
+    assert data["complaint_id"].startswith(("CMP-2026-", "CIV-2026-"))
     assert data["priority_band"] == "Critical"
     assert data["safety_override_active"] is True
     assert data["ai_reasoning_summary"] is not None

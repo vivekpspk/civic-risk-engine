@@ -18,6 +18,9 @@ from app.api.simulation import router as simulation_router
 from app.api.complaints import router as complaints_router
 from app.api.admin_api import router as admin_router
 from app.api.ai_api import router as ai_router
+from app.api.worker_api import router as worker_router
+from app.api.evidence_api import router as evidence_router
+from app.api.public_api import router as public_router
 
 app = FastAPI(
     title="IMPACTX 2026: Explainable Civic Risk Scoring & Priority Engine",
@@ -45,6 +48,9 @@ init_db()
 # Include Routers
 app.include_router(complaints_router)
 app.include_router(admin_router)
+app.include_router(worker_router)
+app.include_router(evidence_router)
+app.include_router(public_router)
 app.include_router(ai_router)
 app.include_router(incidents_router)
 app.include_router(priority_router)

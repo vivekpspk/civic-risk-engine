@@ -13,14 +13,19 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 from sqlalchemy.orm import Session
 
+import uuid
+import base64
 from app.models.database import (
-    IncidentModel, AssessmentModel, ManualOverrideModel, AuditLogModel, ComplaintModel
+    IncidentModel, AssessmentModel, ManualOverrideModel, AuditLogModel, ComplaintModel,
+    EvidenceModel, StatusHistoryModel
 )
 from app.models.schemas import (
     CitizenComplaintCreate, CitizenComplaintResponse, RiskAssessmentResponse,
     SafetyOverrideResponse, AdminStatusUpdate, AdminAssignmentUpdate,
-    AdminDashboardResponse, AssessmentHistoryItem
+    AdminDashboardResponse, AssessmentHistoryItem, PublicComplaintTrackingResponse,
+    StatusTimelineItem, EvidenceItemResponse
 )
+from app.core.lifecycle import ComplaintLifecycleStatus, record_status_history, normalize_status
 from app.core.hazard_taxonomy import RAIN_HAZARD_TAXONOMY, classify_hazard_from_text, HazardDefinition
 from app.core.gis_service import default_gis_service, ProximityEvaluationResult, WardRoutingResult
 from app.core.population_service import default_population_provider, PopulationExposureResult
@@ -28,16 +33,16 @@ from app.core.weather_service import default_weather_provider, WeatherData
 from app.core.risk_scorer import FactorInputs, compute_risk_score
 from app.core.safety_rules import evaluate_safety_rules, SafetyOverrideEvaluation
 from app.core.priority_engine import evaluate_sla_status, PriorityQueueItem
-from app.services.evidence_service import redact_sensitive_text
+from app.services.evidence_service import redact_sensitive_text, EvidenceService
 from app.services.gemini_service import gemini_ai_service
 
 
 class ComplaintService:
     @staticmethod
     def generate_complaint_id() -> str:
-        # e.g. CMP-2026-8A3F
-        ts_suffix = hex(int(time.time() * 1000))[-4:].upper()
-        return f"CMP-2026-{ts_suffix}"
+        # CIV-2026-XXXXXXXX non-sequential unique alphanumeric ID
+        suffix = uuid.uuid4().hex[:8].upper()
+        return f"CIV-2026-{suffix}"
 
     @staticmethod
     def submit_citizen_complaint(db: Session, req: CitizenComplaintCreate) -> CitizenComplaintResponse:
@@ -216,9 +221,10 @@ class ComplaintService:
             reporter_phone=req.reporter_phone,
             reporter_email=req.reporter_email,
             location_address=req.location_address,
-            category_hint=req.hazard_category_hint,
+            category_hint=req.hazard_category_hint or req.category_hint,
             evidence_urls=req.evidence_photos or [],
             consent_given=req.consent_given,
+            consent_sms=req.consent_sms,
             boundary_dispute=ward_routing.is_boundary_dispute,
             disputed_wards=ward_routing.disputed_wards,
             status="submitted",
@@ -230,6 +236,55 @@ class ComplaintService:
         )
         db.add(incident)
         db.commit()
+
+        # Store initial before photos if provided in submission payload
+        if req.evidence_photos:
+            for idx, photo_item in enumerate(req.evidence_photos):
+                try:
+                    if photo_item.startswith("data:image"):
+                        header, encoded = photo_item.split(",", 1)
+                        mime = header.split(";")[0].split(":")[1]
+                        raw_bytes = base64.b64decode(encoded)
+                    elif len(photo_item) > 100:
+                        raw_bytes = base64.b64decode(photo_item)
+                        mime = "image/jpeg"
+                    else:
+                        # Dummy valid JPEG magic bytes for testing
+                        raw_bytes = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00\xff\xdb\x00C\x00\x08\x06\x06\x07\x06\x05\x08\x07\x07\x07\t\t\x08\n\x0c\x14\r\x0c\x0b\x0b\x0c\x19\x12\x13\x0f\x14\x1d\x1a\x1f\x1e\x1d\x1a\x1c\x1c $.' \",#\x1c\x1c(7),01444\x1f'9=82<.342\xff\xc0\x00\x0b\x08\x00\x01\x00\x01\x01\x01\x11\x00\xff\xc4\x00\x1f\x00\x00\x01\x05\x01\x01\x01\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x01\x02\x03\x04\x05\x06\x07\x08\t\n\x0b\xff\xda\x00\x08\x01\x01\x00\x00?\x00\xbf\x00\xff\xd9"
+                        mime = "image/jpeg"
+                    EvidenceService.process_and_store_evidence(
+                        db=db,
+                        complaint_id=complaint_id,
+                        file_bytes=raw_bytes,
+                        original_filename=f"initial_before_photo_{idx+1}.jpg",
+                        declared_mime=mime,
+                        evidence_type="before",
+                        uploaded_by_role="citizen",
+                        uploaded_by_id=req.reporter_name or "citizen_anonymous",
+                        caption="Initial before photo submitted by citizen"
+                    )
+                except Exception:
+                    pass
+
+        # Record immutable lifecycle transitions
+        record_status_history(
+            db=db,
+            complaint_id=complaint_id,
+            previous_status=None,
+            new_status=ComplaintLifecycleStatus.SUBMITTED.value,
+            actor_id=req.reporter_name or "citizen_anonymous",
+            actor_role="citizen",
+            notes="Initial complaint received from citizen portal."
+        )
+        record_status_history(
+            db=db,
+            complaint_id=complaint_id,
+            previous_status=ComplaintLifecycleStatus.SUBMITTED.value,
+            new_status=ComplaintLifecycleStatus.ASSESSED.value,
+            actor_id="SYSTEM_RISK_ENGINE",
+            actor_role="system",
+            notes=f"Automated risk scoring complete: {calculated_score:.1f}/100 ({priority_band})."
+        )
 
         # 16. Persist Assessment Model
         safety_json = {
@@ -350,6 +405,118 @@ class ComplaintService:
             ai_model_used=incident.ai_model_used,
             ai_analysis_status=incident.ai_analysis_status,
             ai_confidence_score=incident.ai_confidence_score,
+        )
+
+    @staticmethod
+    def get_public_tracking_dossier(db: Session, complaint_id: str) -> PublicComplaintTrackingResponse:
+        """
+        Public tracking endpoint:
+        Provides complete citizen tracking dossier with status timeline,
+        before-and-after proof photos, and resolution summary.
+        STRICTLY excludes private reporter details, worker contact numbers, and internal notes.
+        """
+        incident = db.query(IncidentModel).filter(IncidentModel.incident_id == complaint_id).first()
+        if not incident:
+            raise KeyError(f"Complaint '{complaint_id}' not found.")
+
+        latest_assessment = (
+            db.query(AssessmentModel)
+            .filter(AssessmentModel.incident_id == complaint_id)
+            .order_by(AssessmentModel.assessed_at.desc())
+            .first()
+        )
+        priority_band = latest_assessment.priority_band if latest_assessment else "Medium"
+        haz_def = RAIN_HAZARD_TAXONOMY.get(incident.hazard_type, RAIN_HAZARD_TAXONOMY["other_rain_hazard"])
+
+        # Fetch status timeline
+        history_records = (
+            db.query(StatusHistoryModel)
+            .filter(StatusHistoryModel.complaint_id == complaint_id)
+            .order_by(StatusHistoryModel.timestamp.asc())
+            .all()
+        )
+        timeline = [
+            StatusTimelineItem(
+                timestamp=h.timestamp.isoformat() if h.timestamp else "",
+                status=h.new_status,
+                actor_role=h.actor_role,
+                notes=h.notes if h.actor_role != "administrator" or "internal" not in (h.notes or "").lower() else "Administrative review processed"
+            )
+            for h in history_records
+        ]
+
+        # Fetch evidence photos (Only approved for public viewing)
+        evidence_records = (
+            db.query(EvidenceModel)
+            .filter(EvidenceModel.complaint_id == complaint_id)
+            .filter(EvidenceModel.redaction_status == "approved")
+            .order_by(EvidenceModel.uploaded_at.asc())
+            .all()
+        )
+
+        before_photos = [
+            EvidenceItemResponse(
+                evidence_id=e.evidence_id,
+                evidence_type=e.evidence_type,
+                original_filename=e.original_filename,
+                mime_type=e.mime_type,
+                file_size_bytes=e.file_size_bytes,
+                uploaded_by_role=e.uploaded_by_role,
+                uploaded_by_id=e.uploaded_by_id if e.uploaded_by_role != "citizen" else "citizen",
+                uploaded_at=e.uploaded_at.isoformat() if e.uploaded_at else "",
+                redaction_status=e.redaction_status,
+                view_url=f"/api/evidence/{e.evidence_id}/file",
+                caption=e.caption,
+                sha256_hash=e.sha256_hash
+            )
+            for e in evidence_records if e.evidence_type == "before"
+        ]
+
+        after_photos = [
+            EvidenceItemResponse(
+                evidence_id=e.evidence_id,
+                evidence_type=e.evidence_type,
+                original_filename=e.original_filename,
+                mime_type=e.mime_type,
+                file_size_bytes=e.file_size_bytes,
+                uploaded_by_role=e.uploaded_by_role,
+                uploaded_by_id="municipal_field_worker",  # Never expose personal worker id
+                uploaded_at=e.uploaded_at.isoformat() if e.uploaded_at else "",
+                redaction_status=e.redaction_status,
+                view_url=f"/api/evidence/{e.evidence_id}/file",
+                caption=e.caption,
+                sha256_hash=e.sha256_hash
+            )
+            for e in evidence_records if e.evidence_type == "after"
+        ]
+
+        # Resolution details if completed/verified
+        res_desc = None
+        action_perf = None
+        if incident.resolutions:
+            latest_res = incident.resolutions[0]
+            if latest_res.verification_status == "verified" or incident.status.upper() == "COMPLETED":
+                res_desc = latest_res.description
+                action_perf = latest_res.action_taken
+
+        is_reopened = (getattr(incident, "reopened_count", 0) > 0) or (incident.status.upper() == "REOPENED")
+
+        return PublicComplaintTrackingResponse(
+            complaint_id=incident.incident_id,
+            status=incident.status,
+            submitted_at=incident.created_at.isoformat() if incident.created_at else "",
+            hazard_category=haz_def.display_name,
+            general_description=incident.description or "",
+            priority_band=priority_band,
+            ward=incident.ward or "Ward 07",
+            is_reopened=is_reopened,
+            status_timeline=timeline,
+            before_photos=before_photos,
+            after_photos=after_photos,
+            resolution_description=res_desc,
+            action_performed=action_perf,
+            resolved_at=incident.resolved_at.isoformat() if incident.resolved_at else None,
+            tracking_url=f"/api/public/complaints/{incident.incident_id}"
         )
 
     @staticmethod

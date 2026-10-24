@@ -69,7 +69,7 @@ def test_01_normal_waterlogging_complaint_accepted_and_assessed(client):
     res = client.post("/api/complaints", json=payload)
     assert res.status_code == 201
     data = res.json()
-    assert data["complaint_id"].startswith("CMP-2026-")
+    assert data["complaint_id"].startswith(("CMP-2026-", "CIV-2026-"))
     assert data["status"] == "submitted"
     assert data["risk_score"] > 0.0
     assert data["priority_band"] in ["Routine", "Medium", "High", "Critical"]
@@ -163,7 +163,7 @@ def test_06_missing_gps_handled_safely(client):
     res = client.post("/api/complaints", json=payload)
     assert res.status_code == 201
     data = res.json()
-    assert data["complaint_id"].startswith("CMP-2026-")
+    assert data["complaint_id"].startswith(("CMP-2026-", "CIV-2026-"))
     assert data["risk_score"] > 0.0
     # Proximity is marked as unknown with conservative baseline
     assert "conservative planning baseline" in data["plain_language_explanation"].lower() or "unknown" in data["plain_language_explanation"].lower()
