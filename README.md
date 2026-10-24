@@ -1,159 +1,249 @@
 # IMPACTX 2026 — Challenge 10: "Your City, Your Services"
-## Explainable Civic Risk Scoring & Priority Engine
+## Explainable Civic Risk Scoring, Priority Engine & Complaint Lifecycle Backend
 ### Team OverClock | VIT-AP University
 
-A production-grade, mathematically deterministic, and explainable **Civic Risk Scoring and Priority Engine** built for municipal incident triage during severe weather emergencies.
+**Official GitHub Repository:** [https://github.com/vivekpspk/civic-risk-engine](https://github.com/vivekpspk/civic-risk-engine)  
+**Clone URL:** `https://github.com/vivekpspk/civic-risk-engine.git`  
+**Active Branch:** `main`  
+**Automated Test Suite:** 65/65 Unit & Integration Tests Passing (100% Pass Rate)  
+**Live UI & API Server:** [http://127.0.0.1:8000/](http://127.0.0.1:8000/) | Swagger Docs: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 
 ---
 
-## 1. System Overview
+## 🤖 Instructions for Teammate's Antigravity AI Agent
 
-When sudden cloudbursts generate 140+ simultaneous civic reports across municipal wards, traditional first-in-first-out (FIFO) ticketing queues fail: fatal hazards remain buried beneath cosmetic complaints, inter-departmental boundary disputes stall response, and bot bursts divert emergency resources.
+If your teammate or their Antigravity agent is picking up this repository, copy and paste this exact prompt into their Antigravity chat:
 
-This platform implements:
-1. **Complete Complaint Lifecycle State Machine:** Enforces strict validated transitions across 11 stages (`SUBMITTED`, `ASSESSED`, `ASSIGNED`, `ACCEPTED`, `IN_PROGRESS`, `RESOLUTION_SUBMITTED`, `VERIFICATION_REQUIRED`, `COMPLETED`, `REOPENED`, `REJECTED`, `UNABLE_TO_RESOLVE`).
-2. **Secure Before-and-After Evidence Management:** Automatically strips EXIF metadata, verifies MIME signatures (JPEG, PNG, WEBP), and stores before-and-after proof separately for tamper-evident review.
-3. **Role-Enforced Workflows:** Field workers cannot approve their own tasks or mark complaints completed. Administrator verification with before/after comparison is mandatory.
-4. **Resilient Citizen SMS Notification:** Triggers completion SMS notifications to citizens upon administrator verification, protected by idempotency keys and citizen consent checks.
-5. **Deterministic 6-Factor Risk Formula:** Dynamically scores incidents from 0.0 to 100.0 based on physical hazard severity, sensitive site proximity, population exposure, weather risk, elapsed time, and historical recurrence.
-6. **Independent Safety Override Engine:** Automatically forces imminent life hazards (e.g., open manholes near school gates, sparking electrical cables in rainwater) to **Critical Emergency Review**, independent of raw formula scores.
-7. **Dynamic Priority Queue:** Orders tickets using a strict hierarchy: `Active Safety Override` &rarr; `Physical Risk Score` &rarr; `SLA Urgency` &rarr; `Incident Age (Tie-Breaker)`.
-8. **Honest Uncertainty & Missing Data Handling:** Distinctly differentiates zero population from missing census data, flagging uncertainties without making false assumptions.
-9. **Replayable 140-Report Stress Test:** Ingests exactly 140 synthetic reports across 3 simulated storm hours while preserving independent genuine emergencies.
-10. **Immutable Audit Ledger:** Persists every assessment, status transition, evidence upload, and authorized override.
+```text
+Act as a senior full-stack engineer on Team OverClock for IMPACTX 2026 Challenge 10 ("Your City, Your Services").
+Our teammate has already built, tested, and verified the complete backend for the Civic Risk Scoring & Priority Engine and the 11-status Civic Complaint Lifecycle.
+
+1. Clone our official repository:
+   git clone https://github.com/vivekpspk/civic-risk-engine.git
+   cd civic-risk-engine
+
+2. Read TEAMMATE_ANTIGRAVITY_HANDOFF.md, INTEGRATION_GUIDE.md, and README.md.
+
+3. DO NOT rewrite or break the existing 6-factor risk formula, safety override rules, evidence redaction pipeline, or lifecycle state machine.
+
+4. Run the test suite to verify everything passes:
+   cd backend
+   python -m pytest tests -v
+
+5. Start the full-stack server (serves the pre-built React UI + API):
+   python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+
+6. Proceed to integrate our frontend, complementary microservices, or custom dashboard components with the documented REST endpoints.
+```
 
 ---
 
-## 2. Technology Stack
+## 1. System Overview & End-to-End Workflow
 
-- **Backend:** Python 3.11+, FastAPI (Async ASGI framework).
-- **Frontend:** React 18, TypeScript, Tailwind CSS (Vite build system).
-- **UI Design:** Light-mode glassmorphism with white translucent cards, pastel blue, mint, lavender, and coral accents, accessible contrast, and smooth transitions.
-- **Database:** SQLite for standalone zero-configuration local prototyping via SQLAlchemy 2.0 (structured for zero-friction migration to PostgreSQL + PostGIS).
-- **Testing:** pytest with 14 automated unit and integration tests (100% pass rate).
-- **Documentation:** Interactive OpenAPI / Swagger UI at `/docs`.
+This repository provides the complete municipal backend for the entire civic incident and complaint lifecycle:
+
+$$\text{Citizen Report (with Photo)} \longrightarrow \text{Auto Risk Triage} \longrightarrow \text{Admin Assigns Worker} \longrightarrow \text{Worker Resolves (After-Photo)} \longrightarrow \text{Admin Verifies} \longrightarrow \text{Citizen Before/After Proof \& SMS}$$
+
+```
++---------------------------------------------------------------------------------------------------------+
+|                                    CIVIC COMPLAINT LIFECYCLE WORKFLOW                                   |
++---------------------------------------------------------------------------------------------------------+
+|                                                                                                         |
+|   1. CITIZEN SUBMISSION                                                                                 |
+|      - POST /api/complaints                                                                             |
+|      - Uploads issue description, GPS coordinates, optional contact info, SMS consent, and initial photo|
+|      - Generates unguessable complaint ID (e.g. CIV-2026-A1B2C3D4)                                      |
+|                                                                                                         |
+|   2. AUTOMATIC RISK TRIAGE & SAFETY OVERRIDE                                                            |
+|      - Evaluates deterministic 6-factor risk formula (Hazard, Proximity, Population, Weather, Time, C) |
+|      - Evaluates safety overrides (e.g. open manholes near schools trigger Critical Emergency Review)   |
+|      - Automatically sets status: ASSESSED & ranks into priority queue                                  |
+|                                                                                                         |
+|   3. ADMINISTRATOR ASSIGNMENT                                                                           |
+|      - GET /api/admin/complaints & GET /api/admin/priority-queue                                        |
+|      - POST /api/admin/complaints/{id}/assign                                                           |
+|      - Assigns municipal worker (e.g. WRK-101) with task instructions and SLA target                    |
+|      - Status transitions: ASSIGNED                                                                     |
+|                                                                                                         |
+|   4. FIELD WORKER TASK EXECUTION                                                                        |
+|      - GET /api/worker/tasks (filtered by X-Worker-ID)                                                  |
+|      - POST /api/worker/tasks/{id}/accept  --> Status: ACCEPTED                                         |
+|      - POST /api/worker/tasks/{id}/start   --> Status: IN_PROGRESS                                      |
+|      - (Or POST /api/worker/tasks/{id}/unable-to-resolve with blockers --> Status: UNABLE_TO_RESOLVE)   |
+|                                                                                                         |
+|   5. WORKER RESOLUTION & AFTER-PHOTO PROOF                                                              |
+|      - POST /api/worker/complaints/{id}/evidence/after (uploads tamper-evident after-photos)            |
+|      - POST /api/worker/tasks/{id}/submit-resolution                                                    |
+|      - Status transitions: VERIFICATION_REQUIRED                                                       |
+|                                                                                                         |
+|   6. ADMINISTRATOR VERIFICATION AUDIT                                                                   |
+|      - GET /api/complaints/{id}/comparison (inspects before vs. after proof side-by-side)               |
+|      - POST /api/admin/complaints/{id}/verify-resolution (approved=true)                                |
+|      - Validates after-evidence is present before allowing completion                                    |
+|      - Status transitions: COMPLETED                                                                    |
+|                                                                                                         |
+|   7. CITIZEN PROOF & IDEMPOTENT SMS NOTIFICATION                                                        |
+|      - GET /api/public/complaints/{id} (citizen tracks status timeline & before/after proof; 0 PII leak)|
+|      - Automated SMS notification dispatched with idempotency key COMPL-RESOLVED-{id}                   |
+|                                                                                                         |
++---------------------------------------------------------------------------------------------------------+
+```
 
 ---
 
-## 3. Mathematical Risk Scoring Model
+## 2. Complete 11-Status Complaint Lifecycle State Machine
 
-The core engine computes risk according to the weighted formula:
+Status transitions are strictly validated on the server. Arbitrary jumps and unauthorized role transitions are rejected with HTTP 422:
+
+| Status | Triggering Actor | Description | Permitted Next Statuses |
+| :--- | :--- | :--- | :--- |
+| `SUBMITTED` | Citizen | Complaint registered with initial evidence | `ASSESSED`, `ASSIGNED`, `REJECTED` |
+| `ASSESSED` | Risk Engine | Risk score & safety overrides computed | `ASSIGNED`, `REJECTED` |
+| `ASSIGNED` | Administrator | Assigned to field worker with instructions | `ACCEPTED`, `ASSIGNED`, `REJECTED` |
+| `ACCEPTED` | Field Worker | Worker acknowledges dispatch | `IN_PROGRESS`, `UNABLE_TO_RESOLVE` |
+| `IN_PROGRESS` | Field Worker | Physical on-site inspection or repair underway | `RESOLUTION_SUBMITTED`, `VERIFICATION_REQUIRED`, `UNABLE_TO_RESOLVE` |
+| `RESOLUTION_SUBMITTED` | Field Worker | Work finished, after-photos uploaded | `VERIFICATION_REQUIRED` |
+| `VERIFICATION_REQUIRED`| Worker / System | Awaiting admin review of resolution proof | `COMPLETED`, `IN_PROGRESS`, `REJECTED` |
+| `COMPLETED` | Administrator | Resolution verified with before/after photos | `REOPENED` |
+| `REOPENED` | Administrator | Work inadequate or recurring hazard reported | `ASSIGNED`, `IN_PROGRESS` |
+| `REJECTED` | Administrator | Ineligible report with mandatory reason | None (terminal) |
+| `UNABLE_TO_RESOLVE` | Field Worker | Legitimate site blocker with explanation | `ASSIGNED`, `REJECTED`, `IN_PROGRESS` |
+
+### Strict Role Security Barriers:
+- **Workers cannot approve their own work:** Any worker attempting to transition a task directly to `COMPLETED` is rejected with HTTP 403 Forbidden.
+- **Workers cannot modify unassigned tasks:** Workers can only view and update tasks assigned to their authenticated `worker_id`.
+- **Admin cannot complete without after-evidence:** Approving a resolution requires at least one verified after-photo on file.
+
+---
+
+## 3. Secure Before-and-After Evidence Management
+
+- **Before Photos:** Uploaded by citizen upon submission (`POST /api/complaints/{id}/evidence/before`). Timestamped, actor-linked, and immutable.
+- **After Photos:** Uploaded by assigned worker upon repair (`POST /api/worker/complaints/{id}/evidence/after`). Separate evidence tier.
+- **Side-by-Side Comparison Dossier:** `GET /api/complaints/{id}/comparison` returns separated collections of before-photos and after-photos.
+- **Tamper & File Signature Security:**
+  - Validates binary magic bytes (JPEG `\xff\xd8`, PNG `\x89PNG`, WEBP `RIFF...WEBP`).
+  - Max file size: 10 MB per photo. Max photos: 5 per submission.
+  - Automatically scrubs EXIF metadata, GPS hardware tags, and camera serial numbers before serving.
+  - Safe streaming endpoint (`GET /api/evidence/{id}/file`) prevents exposure of raw disk paths.
+
+---
+
+## 4. Deterministic 6-Factor Risk Formula
+
+The core mathematical engine scores incidents from $0.0$ to $100.0$:
 
 $$\text{Risk Score} = 100 \times (0.25H + 0.20S + 0.20P + 0.15W + 0.10T + 0.10C)$$
 
-Where all factors are normalized between $0.0$ and $1.0$:
-- **$H$ (Hazard Severity, 25%):** Mapped from civic hazard taxonomy (e.g., `open_manhole`: 1.0, `severe_flooding`: 0.9, `pothole`: 0.3).
-- **$S$ (Sensitive-Site Proximity, 20%):** Exponential distance decay from schools, hospitals, transit hubs ($d \le 50\text{m} \implies 1.0$).
-- **$P$ (Population Exposed, 20%):** Active pedestrian/commuter density index. Missing data is flagged with an uncertainty warning and defaults to conservative planning baseline 0.50 (distinct from confirmed zero).
-- **$W$ (Weather Risk, 15%):** Real-time precipitation and flash-flood susceptibility index. Stale feeds are flagged.
-- **$T$ (Time Outstanding, 10%):** Linear escalation capped at 24 hours ($T = \min(1.0, \text{elapsed\_hours} / 24)$). Immediate emergencies never wait for this factor to rise.
-- **$C$ (Historical Recurrence, 10%):** Distinct past incidents at the asset in the past 30 days. Duplicate reports for the same incident cluster do **not** inflate recurrence.
+- **$H$ (Hazard Severity, 25%):** Mapped from civic taxonomy (e.g. `open_manhole`: 1.0, `severe_flooding`: 0.9, `pothole`: 0.3).
+- **$S$ (Sensitive-Site Proximity, 20%):** Exponential distance decay from schools, hospitals, transit ($d \le 50\text{m} \implies 1.0$).
+- **$P$ (Population Exposed, 20%):** Active density index. Missing data flagged as uncertainty; defaults to conservative planning baseline 0.50 (distinct from confirmed zero).
+- **$W$ (Weather Risk, 15%):** Real-time precipitation and flood telemetry.
+- **$T$ (Time Outstanding, 10%):** Linear escalation capped at 24 hours. Immediate emergencies never wait for this factor.
+- **$C$ (Historical Recurrence, 10%):** Distinct past incidents in past 30 days. Duplicate reports for the same incident cluster do not inflate recurrence.
 
-### Exact Section 8 Verification Test Case:
-- **Inputs:** $H=1.0, S=0.9, P=0.7, W=0.8, T=0.2, C=0.3$
-- **Calculation:** $100 \times (0.25 \times 1.0 + 0.20 \times 0.9 + 0.20 \times 0.7 + 0.15 \times 0.8 + 0.10 \times 0.2 + 0.10 \times 0.3)$
-- **Contributions:** $H = 25.0, S = 18.0, P = 14.0, W = 12.0, T = 2.0, C = 3.0$
-- **Result:** **`74.0 / 100`** (**High Priority Band**). Verified via automated pytest test `test_01_correct_weighted_score_calculation`.
-
-### Configurable Priority Bands:
-- **80.0 – 100.0:** Critical (Immediate response within 30 min)
-- **60.0 – 79.99:** High (Response within 2 hours)
-- **35.0 – 59.99:** Medium (Standard daily maintenance shift)
-- **0.0 – 34.99:** Routine (Backlog intake within 72 hours)
-
-*Disclaimer: A numerical score represents comparative operational triage urgency, not the physical probability of an accident.*
+### Independent Safety Override Engine
+Imminent life hazards (e.g. open manholes near schools, live wires submerged in water) immediately activate **Critical Emergency Review**, independent of raw numerical formula score.
 
 ---
 
-## 4. Quick Start & Execution Guide
+## 5. Quick Start & Execution Guide
 
 ### Option A: Single-Command Full-Stack (Recommended)
-Because the React frontend is pre-built into `frontend/dist/`, running FastAPI automatically serves both the complete interactive web UI and the API:
+The React frontend is pre-built into `frontend/dist/`. FastAPI automatically serves the complete interactive UI alongside the REST API:
 
 ```bash
-# Navigate to the backend directory
-cd C:\Users\vivek\.gemini\antigravity\scratch\impactx-overclock\civic_risk_engine\backend
+# 1. Navigate to backend directory
+cd backend
 
-# Start the full-stack server
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
-```
-Open your browser at:
-- **Interactive Web Application:** [http://127.0.0.1:8000/](http://127.0.0.1:8000/)
-- **Swagger API Documentation:** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+# 2. Install dependencies
+pip install -r requirements.txt
 
----
-
-### Option B: Dual-Terminal Development Mode (Hot-Reloading)
-
-**Terminal 1 (Backend API):**
-```bash
-cd C:\Users\vivek\.gemini\antigravity\scratch\impactx-overclock\civic_risk_engine\backend
+# 3. Start full-stack server
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-**Terminal 2 (Frontend Dev Server):**
-```bash
-cd C:\Users\vivek\.gemini\antigravity\scratch\impactx-overclock\civic_risk_engine\frontend
-npm run dev
-```
-Open [http://localhost:3000](http://localhost:3000) for instant hot-module replacement.
+- **Interactive Full-Stack Web App:** [http://127.0.0.1:8000/](http://127.0.0.1:8000/)
+- **Interactive Swagger API Documentation:** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+- **Service Health Check:** [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
+
+### Seeded Field Workers for Testing:
+- `WRK-101`: Ramesh Kumar (Drainage & Sewerage)
+- `WRK-102`: Priya Sharma (Roads & Bridges)
+- `WRK-103`: Suresh Reddy (Electrical & Lighting)
+- `WRK-104`: Ananya Das (Sanitation & Health)
 
 ---
 
-## 5. Running Automated Tests
+## 6. Running Automated Tests
 
-Execute the 14-point test suite with pytest:
+Run the complete 65-test verification suite:
 
 ```bash
-cd C:\Users\vivek\.gemini\antigravity\scratch\impactx-overclock\civic_risk_engine\backend
+cd backend
 python -m pytest tests -v
 ```
 
-### Verified Acceptance Test Suite (14/14 PASS):
-- `test_01_correct_weighted_score_calculation`: Verified exact 74.0/100 sample match and contributions.
-- `test_02_invalid_factor_values_outside_range`: Verified rejection of inputs outside $[0.0, 1.0]$.
-- `test_03_weight_validation`: Verified strict validation that factor weights sum to 1.0.
-- `test_04_priority_band_boundaries`: Verified transitions between Routine, Medium, High, and Critical.
-- `test_05_safety_override_independent_of_weighted_score`: Verified automated overrides promote low-score incidents to Critical Review.
-- `test_06_missing_and_stale_data_handling`: Verified distinct zero vs missing population and stale weather warnings.
-- `test_07_dynamic_time_factor_calculation`: Verified linear time escalation capped at 24 hours.
-- `test_08_duplicate_reports_not_inflating_recurrence`: Verified identical cluster reports do not distort recurrence count.
-- `test_09_sla_breach_detection`: Verified overdue alerts trigger without altering physical hazard score.
-- `test_10_deterministic_ranking_and_tie_breaking`: Verified multi-tier queue sorting and age tie-breaker.
-- `test_11_audit_history_persistence`: Verified multiple assessments are appended without overwriting history.
-- `test_12_exactly_140_reports_in_simulator`: Verified exact 140 report count (28 school, 36 boundary, 32 bot, 44 routine).
-- `test_13_genuine_hazard_preserved_under_coordinated_abuse`: Verified independent emergency remains in Top 2 during bot swarm.
-- `test_14_api_validation_and_error_handling`: Verified 200 health, 404 missing, 422 validation, and 403 authorization.
+### Complete Test Coverage Breakdown (65/65 PASS):
+1. **`test_complaint_lifecycle.py` (25/25 PASS):** Tests complete 11-status lifecycle, role enforcement, before/after evidence validation, SMS idempotency, citizen privacy, and audit trail.
+2. **`test_complaint_engine.py` (22/22 PASS):** Tests complaint submission, automatic risk assessment, department routing, SLA deadlines, and duplicate report deduplication.
+3. **`test_risk_engine.py` (14/14 PASS):** Tests 6-factor mathematical formula, exact Section 8 sample vector (74.0/100), safety overrides, 140-report stress simulator, and tie-breaking.
+4. **`test_gemini_ai.py` (4/4 PASS):** Tests AI visual hazard analysis and fallback heuristics.
 
----
-
-## 6. End-to-End Verification Script
-
-Run the automated integration verification script:
-
+### Automated End-to-End Simulation Script:
+Run the live 8-step citizen &rarr; worker &rarr; admin &rarr; citizen integration script:
 ```bash
-cd C:\Users\vivek\.gemini\antigravity\scratch\impactx-overclock\civic_risk_engine
 python verify_e2e.py
 ```
 
 ---
 
-## 7. API Reference
+## 7. Complete API Reference
 
+### 1. Citizen & Public Endpoints
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `/api/complaints` | Citizen submits new complaint with photo, location, and SMS consent |
+| `GET` | `/api/complaints/{id}` | Detailed complaint record with assessment & history |
+| `GET` | `/api/public/complaints/{id}` | Privacy-safe citizen tracking portal (zero PII leaks) |
+| `POST` | `/api/complaints/{id}/evidence/before` | Upload citizen before-resolution photos |
+| `GET` | `/api/complaints/{id}/evidence` | List all verified evidence records |
+| `GET` | `/api/complaints/{id}/comparison` | Side-by-side Before vs. After proof comparison dossier |
+| `GET` | `/api/evidence/{id}/file` | Safe sanitized image byte stream (strips EXIF) |
+
+### 2. Field Worker Endpoints
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/api/worker/tasks` | List tasks assigned to worker (`?worker_id=WRK-101`) |
+| `GET` | `/api/worker/tasks/{id}` | Detailed task instructions, location, and severity |
+| `POST` | `/api/worker/tasks/{id}/accept` | Worker accepts dispatch (`ASSIGNED` &rarr; `ACCEPTED`) |
+| `POST` | `/api/worker/tasks/{id}/start` | Worker starts physical repair (`ACCEPTED` &rarr; `IN_PROGRESS`) |
+| `POST` | `/api/worker/complaints/{id}/evidence/after` | Worker uploads after-repair proof photos |
+| `POST` | `/api/worker/tasks/{id}/submit-resolution` | Worker submits completion & after-photos for verification |
+| `POST` | `/api/worker/tasks/{id}/unable-to-resolve` | Worker reports on-site blocker with reason |
+
+### 3. Administrator Endpoints
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/api/admin/complaints` | List all complaints with filter by status & priority |
+| `GET` | `/api/admin/priority-queue` | Dynamic triage queue sorted by Override &rarr; Risk &rarr; SLA &rarr; Age |
+| `GET` | `/api/admin/dashboard` | Municipal statistics, SLA breach counts, worker workload |
+| `GET` | `/api/admin/workers` | Municipal worker roster and current active assignments |
+| `POST` | `/api/admin/complaints/{id}/assign` | Assign worker with specific instructions and target SLA |
+| `POST` | `/api/admin/complaints/{id}/verify-resolution` | Verify resolution (approves to `COMPLETED` & sends SMS, or rejects back) |
+| `POST` | `/api/admin/complaints/{id}/reopen` | Reopen completed complaint with reason |
+| `POST` | `/api/admin/complaints/{id}/reject` | Reject invalid complaint with mandatory reason |
+| `GET` | `/api/admin/notifications` | Audit log of dispatched citizen SMS notifications |
+
+### 4. Risk Engine & Simulation Endpoints
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
 | `GET` | `/health` | Service health status, formula version, and active factor weights |
-| `POST` | `/incidents` | Create a new incident and calculate initial risk assessment |
-| `POST` | `/incidents/{id}/assess` | Calculate or recalculate physical risk score and safety overrides |
-| `GET` | `/incidents/{id}/risk` | Retrieve latest assessment output |
-| `GET` | `/incidents/{id}` | Complete incident dossier including audit logs and history |
-| `GET` | `/incidents/{id}/history` | Retrieve full immutable assessment history |
-| `POST` | `/incidents/{id}/override` | Apply an authorized manual safety override (supervisor/duty officer) |
-| `GET` | `/priority-queue` | Retrieve deterministically ranked municipal triage queue |
-| `GET` | `/config/risk-model` | Inspect active factor weights, priority bands, and safety rules |
-| `POST` | `/config/risk-model` | Update weights and priority bands with role authorization |
-| `POST` | `/simulation/run-140-reports` | Execute the 140-report synthetic storm stress test |
-| `GET` | `/simulation/status` | Retrieve latest simulation metrics and cluster statistics |
+| `POST` | `/incidents` | Create incident and calculate risk |
+| `POST` | `/incidents/{id}/assess` | Recalculate 6-factor risk score |
+| `GET` | `/priority-queue` | Priority queue endpoint |
+| `POST` | `/simulation/run-140-reports` | Execute 140-report storm stress test |
+| `GET` | `/simulation/status` | Simulation metrics and cluster statistics |
 
 ---
 
@@ -163,26 +253,40 @@ python verify_e2e.py
 civic_risk_engine/
 ├── backend/
 │   ├── app/
-│   │   ├── main.py                  # FastAPI app entrypoint, CORS, static mount
+│   │   ├── main.py                  # FastAPI app entrypoint, CORS, static UI mount
 │   │   ├── config.py                # Weights, priority bands, hazard taxonomy, safety rules
 │   │   ├── core/
+│   │   │   ├── lifecycle.py         # 11-status state machine & role permission matrix
 │   │   │   ├── risk_scorer.py       # 6-factor deterministic calculation & contributions
 │   │   │   ├── feature_extractor.py # Feature extraction, GIS decay, missing data handling
 │   │   │   ├── safety_rules.py      # Independent safety override engine
 │   │   │   └── priority_engine.py   # Deterministic queue ranking & SLA tracking
 │   │   ├── models/
-│   │   │   ├── database.py          # SQLAlchemy models (Incident, Assessment, Audit, Report)
+│   │   │   ├── database.py          # SQLAlchemy models (Complaint, Evidence, Worker, Assignment)
 │   │   │   └── schemas.py           # Pydantic validation schemas
 │   │   ├── services/
+│   │   │   ├── evidence_service.py  # Evidence upload, EXIF stripping, MIME signature validation
+│   │   │   ├── storage_service.py   # Secure disk storage adapter & streaming
+│   │   │   ├── worker_service.py    # Worker task management & resolution submissions
+│   │   │   ├── admin_service.py     # Worker assignment, verification audit & reopening
+│   │   │   ├── notification_service.py # Idempotent citizen SMS notifications
 │   │   │   ├── incident_service.py  # Incident lifecycle, persistence, audit logging
 │   │   │   └── simulation_service.py# 140-report generator & scenario clustering
 │   │   └── api/
+│   │       ├── complaints_api.py    # Citizen complaint submission & tracking
+│   │       ├── evidence_api.py      # Photo upload, comparison dossier & streaming
+│   │       ├── worker_api.py        # Worker dispatch, progress & resolution APIs
+│   │       ├── admin_api.py         # Administrator assignment & verification APIs
+│   │       ├── public_api.py        # Privacy-safe citizen public tracking portal
 │   │       ├── incidents.py         # Incident endpoints
 │   │       ├── priority.py          # Priority queue endpoint
 │   │       ├── config_api.py        # Model configuration endpoints
 │   │       └── simulation.py        # Scenario simulator endpoints
 │   ├── tests/
-│   │   └── test_risk_engine.py      # 14 pytest automated test cases
+│   │   ├── test_complaint_lifecycle.py # 25 automated lifecycle & permission tests
+│   │   ├── test_complaint_engine.py    # 22 complaint submission & queue tests
+│   │   ├── test_risk_engine.py         # 14 mathematical risk formula tests
+│   │   └── test_gemini_ai.py           # 4 AI visual assessment tests
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
@@ -194,15 +298,17 @@ civic_risk_engine/
 │   │       ├── Navbar.tsx           # Brand, health indicator, tab switcher
 │   │       ├── RiskCalculator.tsx   # Interactive 6-factor live calculator
 │   │       ├── PriorityQueue.tsx    # Multi-tier ranked queue & inspector
-│   │       ├── IncidentDetail.tsx   # Dossier, audit ledger & override form
+│   │       ├── IncidentDetail.tsx   # Dossier, Before/After proof & dispatch modal
 │   │       └── ScenarioSimulator.tsx# 140-report stress test dashboard
-│   ├── dist/                        # Production frontend build
+│   ├── dist/                        # Production pre-built frontend assets
 │   ├── package.json
 │   ├── vite.config.ts
 │   └── tailwind.config.js
+├── TEAMMATE_ANTIGRAVITY_HANDOFF.md  # Dedicated Antigravity prompt & handoff document
+├── INTEGRATION_GUIDE.md             # Developer integration guide & JSON payloads
 ├── verify_e2e.py                    # Complete end-to-end integration verifier
 ├── .env.example                     # Environment configuration template
-└── README.md                        # Documentation & setup guide
+└── README.md                        # Primary documentation & setup guide
 ```
 
 ---
