@@ -1,0 +1,22 @@
+# Environment variables & secrets
+.env
+*.env
+.env.local
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Python cache & virtualenv
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+venv/
+.venv/
+
+# Node & Frontend
+node_modules/
+dist/
+.DS_Store
